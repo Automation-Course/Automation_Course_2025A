@@ -1,0 +1,77 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD setup
+
+long duration;
+int distance;
+
+#define trigPin 9           // Ultrasonic sensor trigger pin
+#define echoPin 10          // Ultrasonic sensor echo pin
+#define PIEZO_PIN 8              // Buzzer pin
+#define STOP_BUTTON_PIN 2        // Button pin
+
+Servo Servo1;               // Servo object
+int Servo_Pin = 12;         // Servo motor pin
+
+int buttonState = 0;             // Current button state
+int lastButtonState = 0;         // Previous button state
+bool systemOn = true;            // Tracks whether the system is on or off
+
+ 
+void setup() {
+  Servo1.attach(Servo_Pin);      // Attach servo motor to pin
+  pinMode(PIEZO_PIN, OUTPUT);          // Buzzer pin as output
+  pinMode(STOP_BUTTON_PIN, INPUT_PULLUP); // Button pin with pull-up resistor
+  pinMode(trigPin, OUTPUT);      // Trigger pin as output
+  pinMode(echoPin, INPUT);       // Echo pin as input
+  Serial.begin(9600);
+  lcd.init();                          // Initialize LCD                   // Turn on LCD backlight
+}
+
+void loop() {
+
+  buttonState = digitalRead(STOP_BUTTON_PIN);
+
+ // Measure Distance with Ultrasonic Sensor
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH);
+  distance = duration * 0.034 / 2; // Convert duration to distance in cm
+
+Serial.print("Distance: ");
+Serial.println(distance);
+
+ if (distance > 0 && distance <= 50) {
+  // Check if the button state has changed (debounce)
+  if (buttonState != lastButtonState && buttonState == LOW) {
+    systemOn = !systemOn; // Toggle the system state
+    delay(50); // Small delay for debounce
+  }
+
+  lastButtonState = buttonState; // Save the current state as the last state
+
+  if (systemOn) {
+    // System is on
+    tone(PIEZO_PIN, 1000); //turns on buzzer
+    lcd.backlight();              // Turn on LCD backlight
+    lcd.setCursor(0, 0);
+    lcd.print("Welcome!");   // Display message
+    Servo1.write(0);               // Set servo to 0 degrees initiall
+  } else {
+    // System is off
+    lcd.noBacklight();       // Turn off LCD backlight
+    lcd.clear();         // Clear LCD screen
+    Servo1.write(90);
+    noTone(PIEZO_PIN);  //turns off buzzer
+  }
+
+  delay(100); // Small delay for stability
+
+ }
+}
