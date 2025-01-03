@@ -1,0 +1,170 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>  // Change to the standard LiquidCrystal_I2C library
+#include <Servo.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);  // Initialize the LCD at address 0x27 with 16 columns and 2 rows
+Servo servo;
+
+#define musicPin 7
+#define servoPin 4
+#define echoPin 3
+#define trigPin 5
+#define buttonPin 8
+#define led 12
+
+// Note frequencies for the Cooking Mama theme
+#define C4 261
+#define D4 294
+#define E4 329
+#define F4 349
+#define G4 392
+#define A4 440
+#define B4 466
+#define C5 523
+#define D5 587
+#define E5 659
+#define F5 698
+#define G5 784
+#define A5 880
+
+// Duration of notes (in milliseconds)
+#define WHOLE 1000
+#define HALF 500
+#define QUARTER 250
+#define EIGHTH 125
+
+
+
+long cm = 0;
+long duration;
+long distanceTime;
+bool inArea = false;
+int buttonState = 0;
+int seconds = 0;
+int speed = 0;
+
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(musicPin, OUTPUT);
+  pinMode(buttonPin, INPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(led, OUTPUT);
+  servo.attach(servoPin);
+  lcd.begin(16, 2);            // Start the LCD
+  lcd.setBacklight(1);         // Turn on backlight
+  
+}
+
+
+void loop() {
+    readDistance();
+    buttonState = digitalRead(buttonPin);
+    Serial.println(buttonState);
+
+  if(cm <= 70) {
+    playCookingMamaTheme();
+    openDoor();
+    delay(500);
+    closeDoor();
+     }
+  
+  if (buttonState == HIGH) {
+    Serial.println("Button Pressed!");
+    blinkLed();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Dinner's Ready!");
+    lcd.setBacklight(1);
+    delay(5000);
+    lcd.clear();
+    lcd.setBacklight(0);
+    delay(5000);
+    }
+}
+
+
+//--------------------Functions-------------------
+
+void readDistance() {
+  distanceTime = millis();
+  
+  // Send a 10us pulse to trigger the sensor
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  duration = pulseIn(echoPin, HIGH);
+  
+  cm = duration * 0.034 / 2;  // Calculate distance in cm
+  Serial.print("The distance in cm is: ");
+  Serial.println(cm);
+}
+
+
+// Play the Cooking Mama theme
+void playCookingMamaTheme() {
+  // Start the melody (you can add more notes to extend the theme)
+ playNote(E5, HALF);
+ playNote(D5, HALF);
+ playNote(C5, HALF);
+ playNote(D5, HALF);
+ playNote(E5, HALF);
+ playNote(G4, HALF);
+ playNote(E5, HALF);
+ playNote(D5, HALF);
+
+ delay(500); // Pause before repeating or next sequence
+}
+
+
+void playNote(int note, int duration) {
+ tone(musicPin, note);  // Play the note on the buzzer
+ delay(duration);        // Hold the note for the specified duration
+ noTone(musicPin);      // Stop the note
+ delay(50);              // Short delay between notes
+}
+
+
+void openDoor() {
+   Serial.println("door begin to open");
+   servo.write(170);
+   delay(5000);
+   servo.write(90);
+   delay(5000);
+}
+  
+void closeDoor() {
+   Serial.println("door begin close");
+   servo.write(10);
+   delay(5000);
+   servo.write(90);
+}
+  
+// Led blinking function
+void blinkLed() {
+  Serial.println("start led blink");
+  digitalWrite(led, HIGH);
+  delay(250);
+  digitalWrite(led, LOW);
+  delay(250);
+  digitalWrite(led, HIGH);
+  delay(250);
+  digitalWrite(led, LOW);
+  delay(250);
+  digitalWrite(led, HIGH);
+  delay(250);
+  digitalWrite(led, LOW);
+  delay(250);
+  digitalWrite(led, HIGH);
+  delay(250);
+  digitalWrite(led, LOW);
+  delay(250);
+  Serial.println("finish led blink");
+}
+
+

@@ -1,0 +1,158 @@
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+// הגדרת חיבורי חיישן מרחק
+const int trigPin = 9;
+const int echoPin = 10;
+
+// חיבור PhotoResistor
+const int photoResistorPin = A0; // פין לחיישן PhotoResistor
+int LedBrightness;
+int ldrValue = 0; // קריאת חיישן האור
+int previousBrightness = -1; // משתנה לעוצמת התאורה הקודמת
+const int brightnessThreshold = 10; // סף לשינוי בעוצמת התאורה
+
+// חיבור נורת לד
+const int ledPin = 11;
+
+// חיבור לכפתור
+const int buttonPin = 7;
+
+// חיבור מסך ה-LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Adjust the address as necessary
+
+// אתחול מנוע ה-SERVO
+Servo serveServo;
+
+// משתנים לניהול מצב הלקוח
+bool customerAtTable = false;
+int totalCustomers = 0; // סה"כ לקוחות שהתיישבו
+int totalMealsServed = 0; // סה"כ מנות שהוגשו
+int previousDistance = -1; // ערך מרחק קודם
+
+void setup() {
+  lcd.begin(16, 2);
+  pinMode(buttonPin, INPUT_PULLUP); // כפתור ללקוח שיקבל את המנה
+  pinMode(ledPin, OUTPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(photoResistorPin, INPUT);
+
+  // הדלקת תאורת המסך
+  lcd.setBacklight(1);
+
+  // אתחול הנורה ככבויה
+  digitalWrite(ledPin, LOW);
+
+  // אתחול מנוע Servo
+  serveServo.attach(12); // חיבור למנוע על פין 12
+  serveServo.write(90); // מצב סגור (0 מעלות)
+  Serial.begin(9600);
+
+  // הודעה ראשונית
+  Serial.println("System Initialized...");
+}
+
+void loop() {
+  // שליחת אות לחיישן המרחק
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // קריאת המרחק מחיישן האקו
+  long duration = pulseIn(echoPin, HIGH); // הגבלת זמן קריאה למניעת שגיאות
+  int distance = duration * 0.034 / 2;
+
+  // הדפסת המרחק רק אם היה שינוי
+  if (distance != previousDistance) {
+    Serial.print("Distance: ");
+    Serial.println(distance);
+    previousDistance = distance; // עדכון ערך המרחק הקודם
+  }
+
+  // ניהול מצב לקוח בטווח הרלוונטי
+  if (distance <= 30 && distance > 2) { // בדיקה אם המרחק בטווח תקין
+    if (!customerAtTable) { // לקוח חדש בשולחן
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Welcome!");
+      Serial.println("Customer detected. Welcome message displayed.");
+      customerAtTable = true;
+      totalCustomers++; // עדכון סה"כ הלקוחות
+      digitalWrite(ledPin, HIGH); // הדלקת הנורה
+    }
+  } else {
+    if (customerAtTable) { // לקוח עזב את השולחן
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("No Customer");
+      
+Serial.println("Customer left the table.");
+      customerAtTable = false;
+      digitalWrite(ledPin, LOW); // כיבוי הנורה
+
+      // הצגת סטטיסטיקות כאשר אין לקוחות
+      if (totalCustomers > 0) {
+        float averageMealsPerCustomer = (float)totalMealsServed / totalCustomers;
+        Serial.println("\nStatistics:");
+        Serial.print("Total Customers: ");
+        Serial.println(totalCustomers);
+        Serial.print("Total Meals Served: ");
+        Serial.println(totalMealsServed);
+        Serial.print("Average Meals per Customer: ");
+        Serial.println(averageMealsPerCustomer);
+      }
+    }
+  }
+
+  // התאמת תאורה רק כאשר יש לקוח בשולחן
+  if (customerAtTable) {
+    ldrValue = analogRead(photoResistorPin);
+    Serial.print("LDR reading = ");
+    Serial.println(ldrValue); // הערך האנלוגי הגולמי
+    LedBrightness = map(ldrValue, 679, 6, 0, 255); // מיפוי ערכי חיישן האור
+
+    // בדיקת סף שינוי
+    if (abs(LedBrightness - previousBrightness) > brightnessThreshold) {
+      analogWrite(ledPin, LedBrightness); // התאמת עוצמת נורת LED
+      previousBrightness = LedBrightness; // עדכון הערך הקודם
+    }
+  }
+
+  // אם יש לקוח בשולחן, ניתן ללחוץ על הכפתור
+  if (customerAtTable && digitalRead(buttonPin) == LOW) {
+    Serial.println("Button pressed: Serving meal...");
+    
+    // נקה את השורה הראשונה לפני הצגת ההודעה "Serving meal..."
+    lcd.setCursor(0, 0);
+    lcd.print("                "); // ננקה את השורה הראשונה
+    lcd.setCursor(0, 0);
+    lcd.print("Serving meal...");
+
+    serveServo.write(0); // הנפת המנה
+    delay(1000); // המתנה עד להשלמת ההנפה
+
+    // הצגת הודעה "Meal Served" בשורה השנייה
+    lcd.setCursor(0, 0);
+    lcd.print("                "); // ננקה את השורה הראשונה
+    lcd.setCursor(0, 0);  // העברת הקורסור לשורה השנייה
+    lcd.print("Meal Served");
+
+    serveServo.write(90); // חזרה למצב סגור
+    delay(500); // המתנה לסיום ההפעלה
+
+    Serial.println("Meal served.");
+    totalMealsServed++; // עדכון סה"כ מנות שהוגשו
+  }
+
+  // אם אין לקוח בשולחן, כפתור לא יפעל
+  if (!customerAtTable) {
+    Serial.println("No customer at the table, button press disabled.");
+  }
+
+  delay(100);
+}
