@@ -1,0 +1,127 @@
+
+
+
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+// Define pins for the distance sensor
+const int trigPin = 9;
+const int echoPin = 10;
+
+// Define pin for the LED
+const int ledPin = 3;
+
+// Define pin for the button
+const int buttonPin = 7; // now connected to pin 7
+
+// Define pin for the Piezo
+const int piezoPin = 6;
+
+// Create object for the LCD (change the address if needed)
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Adjust the address as necessary
+
+// Create object for the Servo motor
+Servo doorServo;
+
+// Variables for customer management
+int totalCustomersToday = 0;
+int customersInQueue = 0;
+int customersInside = 0;
+
+void setup() {
+  // Initialize the LCD
+  lcd.init(); // Use init() instead of begin()
+  lcd.backlight();
+  
+  // Set pin modes
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(ledPin, OUTPUT);
+  pinMode(buttonPin, INPUT_PULLUP); // Set pin as input with internal pull-up
+  pinMode(piezoPin, OUTPUT); // Set pin for Piezo
+  
+  // Turn off LED and Piezo initially
+  digitalWrite(ledPin, LOW);
+  digitalWrite(piezoPin, LOW);
+
+  // Attach Servo to pin
+  doorServo.attach(12); // Connect to pin 12
+  doorServo.write(90); // Initial position closed (0 degrees)
+
+  // Start Serial Monitor
+  Serial.begin(9600);
+  Serial.println("System Initialized...");
+}
+
+void loop() {
+  // Send signal to ultrasonic sensor
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Read distance from ultrasonic sensor
+  long duration = pulseIn(echoPin, HIGH);
+  int distance = duration * 0.034 / 2;
+
+  // Print distance to Serial Monitor
+  Serial.print("Distance: ");
+  Serial.println(distance);
+
+  // Detect customer – if within 30 cm
+  if (distance <= 30 && distance > 0) { // Valid distance
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Welcome!");
+    digitalWrite(ledPin, HIGH); // Turn on LED
+    tone(piezoPin, 1000, 500); // Piezo beep at 1000Hz for 500ms
+    customersInQueue++;
+    totalCustomersToday++;
+
+    // Serial Monitor messages
+    Serial.println("New customer entered the queue!");
+    Serial.print("Customers in the Queue: ");
+    Serial.println(customersInQueue);
+    
+  } else {
+    lcd.clear();
+    digitalWrite(ledPin, LOW); // Turn off LED
+  }
+
+  // Check if the button is pressed to open the door
+  if (digitalRead(buttonPin) == LOW && customersInQueue > 0) { // Button pressed (connected to GND)
+    Serial.println("Button pressed: Opening door...");
+    lcd.setCursor(0, 1);
+    lcd.print("Opening door...");
+    customersInside++;
+    customersInQueue--;
+    doorServo.write(0); // Open the door (90 degrees)
+    delay(1000);
+    //lcd.clear();
+    Serial.println("Door Opened.");
+    delay(2000); // Wait for 2 seconds
+    doorServo.write(90); // Close the door (0 degrees)
+   // lcd.clear();
+    Serial.println("Door Closed.");
+    delay(500); // Delay before checking button state again
+    lcd.clear();
+    lcd.print("Total today: ");
+    lcd.println(totalCustomersToday);
+    delay(1000); 
+    Serial.print("Total customers today: ");
+    Serial.println(totalCustomersToday);
+    delay(1000);
+  }
+
+  // Print general information intermittently
+  Serial.print("Customers in queue: ");
+  Serial.println(customersInQueue);
+  Serial.print("Customers inside restaurant: ");
+  Serial.println(customersInside);
+
+  // Short delay
+  delay(100);
+}
