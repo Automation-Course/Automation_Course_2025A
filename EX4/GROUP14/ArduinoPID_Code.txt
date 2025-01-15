@@ -1,0 +1,56 @@
+#include <Encoder.h> // Including the library for rotary encoder functionality
+#include <PIDController.h> // Including the library for PID control implementation
+
+#define ENCODER_PIN_A 2 // Pin for encoder channel A
+#define ENCODER_PIN_B 3 // Pin for encoder channel B (used with interrupt)
+#define MOTOR_PIN_CCW 11 // Pin for motor control in counter-clockwise direction
+#define MOTOR_PIN_CW 10 // Pin for motor control in clockwise direction
+#define MOTOR_SPEED_CONTROL_PIN 9 // Pin for motor speed control (PWM)
+
+float motorSpeed = 0; // Variable to store motor speed as PWM value
+float targetAngle = 0; // Desired angular position in degrees
+float currentAngle = 0; // Current angular position in degrees
+float encoderTicks = 0; // Raw count from encoder
+float ticksToDegrees = 0; // Conversion of encoder ticks to degrees
+float motorOutput = 0; // Scaled motor output value
+float pidInput = 0; // Input to PID controller
+
+// PID tuning constants
+float Kp = 3;
+float Ki = 0.15;
+float Kd = 9;
+    pidController.tune(Kp, Ki, Kd); // Apply PID tuning constants
+    pidController.setpoint(targetAngle); // Set initial desired angle for PID control
+   
+    Serial.print("Enter the angle within -45 to +45 degrees: ");
+}
+
+void loop() {
+    if (Serial.available() > 0) { // Check if data is available from the user
+        targetAngle = Serial.parseFloat(); // Read the input angle
+
+        if (targetAngle > 45) { // Cap the maximum allowable angle
+            targetAngle = 45;
+        }
+
+        if (targetAngle < -45) { // Cap the minimum allowable angle
+            targetAngle = -45;
+        }
+
+        Serial.read(); // Consume the newline character
+        pidController.setpoint(targetAngle); // Update the PID setpoint
+    }
+
+    currentAngle = calculateDegrees(); // Get the current angular position
+    Serial.println(currentAngle); // Print the current angle to the serial monitor
+    motorSpeed = pidController.compute(currentAngle); // Compute the motor speed using PID
+    motorOutput = abs(255 * motorSpeed * 4 / 100); // Scale motor speed for PWM output
+
+    if (motorSpeed > 0.0) {
+        driveForward(); // Drive motor forward if PID output is positive
+    } else {
+        driveReverse(); // Drive motor in reverse if PID output is negative
+    }
+   
+    analogWrite(MOTOR_SPEED_CONTROL_PIN, motorOutput); // Send PWM value to control motor speed
+}
